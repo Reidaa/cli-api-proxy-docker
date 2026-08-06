@@ -1,0 +1,7 @@
+.git
+.env
+config/config.yaml
+config/config.yaml.backup.*
+config/credentials.txt
+data
+README.md

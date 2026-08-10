@@ -22,7 +22,10 @@ auth-dir: "/data/auths"
 api-keys: []
 
 debug: false
-logging-to-file: false
+# Write rotating log files to /data/logs. The total size cap deletes the oldest
+# files first; upstream's default of 0 means unlimited growth.
+logging-to-file: true
+logs-max-total-size-mb: 256
 usage-statistics-enabled: true
 proxy-url: ""
 request-retry: 3

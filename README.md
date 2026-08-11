@@ -129,6 +129,9 @@ docker compose logs -f cli-api-proxy
 # Restart the service after a manual configuration change.
 docker compose restart cli-api-proxy
 
+# Same restart from any working directory.
+./restart.sh
+
 # Stop and remove the container. Local data remains present.
 docker compose down
 ```

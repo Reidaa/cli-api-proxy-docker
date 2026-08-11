@@ -108,29 +108,12 @@ fi
 cat "$credentials_tmp" > "$credentials_file"
 chmod 600 "$credentials_file"
 
-if [ "$restart" = true ] && command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  container_id=$(docker compose ps -q cli-api-proxy 2>/dev/null || true)
-  if [ -n "$container_id" ] && [ "$(docker inspect --format '{{.State.Running}}' "$container_id" 2>/dev/null || true)" = true ]; then
-    docker compose restart cli-api-proxy
-    status=starting
-    i=0
-    while [ "$i" -lt 30 ]; do
-      status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)
-      [ "$status" = healthy ] && break
-      [ "$status" = exited ] && break
-      i=$((i + 1))
-      sleep 1
-    done
-    if [ "$status" != healthy ]; then
-      echo "The key changed, but the container did not become healthy (status: $status)." >&2
-      exit 1
-    fi
-    echo "Restarted CLIProxyAPI."
-  else
-    echo "CLIProxyAPI is not running. The new key applies at the next start."
+if [ "$restart" = true ]; then
+  # restart.sh holds the restart and health-wait logic for the whole project.
+  if ! ./restart.sh; then
+    echo "The key changed, but the restart failed. Check the container log." >&2
+    exit 1
   fi
-elif [ "$restart" = true ]; then
-  echo "Docker Compose is unavailable. The new key applies at the next start."
 else
   echo "The container was not restarted. CLIProxyAPI can load the changed file automatically."
 fi

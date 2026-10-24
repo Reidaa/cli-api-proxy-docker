@@ -23,7 +23,12 @@ Options (after "sh -s --"):
   --no-start      Configure only; skip the Docker build and start.
   --tailscale     Bind all published ports to this host's Tailscale address.
   --reconfigure   Back up and replace the existing config.yaml.
+  --archive PATH  Install from a local tarball instead of downloading.
   -h, --help      Show this help.
+
+Re-running the script on a host that already has an install updates it in
+place: fresh project files replace the old ones, and the generated .env and
+container data trees are kept.
 EOF
 }
 
@@ -32,6 +37,7 @@ owner=Reidaa
 repo=cli-api-proxy-docker
 ref=main
 mode=install
+archive=
 inner_flags=
 
 # Values are consumed with shift, so no here-document inside a for loop has to
@@ -47,12 +53,23 @@ while [ "$#" -gt 0 ]; do
     --version)
       [ "$#" -ge 2 ] || { echo "Option --version needs a value." >&2; exit 2; }
       case "$2" in
-        --dir|--version|--no-start|--reconfigure|--uninstall|--purge|--tailscale|-h|--help|'')
+        --dir|--version|--archive|--no-start|--reconfigure|--uninstall|--purge|--tailscale|-h|--help|'')
           echo "Invalid value for --version: $2" >&2
           exit 2
           ;;
       esac
       ref=$2
+      shift 2
+      ;;
+    --archive)
+      [ "$#" -ge 2 ] || { echo "Option --archive needs a value." >&2; exit 2; }
+      case "$2" in
+        --dir|--version|--archive|--no-start|--reconfigure|--uninstall|--purge|--tailscale|-h|--help|'')
+          echo "Invalid value for --archive: $2" >&2
+          exit 2
+          ;;
+      esac
+      archive=$2
       shift 2
       ;;
     --no-start|--reconfigure|--tailscale)
@@ -121,6 +138,11 @@ if [ "$mode" = uninstall ]; then
       fail_exit "--no-start, --reconfigure and --tailscale do not make sense with --uninstall."
       ;;
   esac
+  if [ -n "$archive" ]; then
+    fail_exit "--archive does not make sense with --uninstall."
+  fi
+  case "$inner_flags" in
+  esac
   if [ -x "$install_dir/uninstall.sh" ]; then
     # shellcheck disable=SC2086
     (cd "$install_dir" && sh ./uninstall.sh $inner_flags)
@@ -164,14 +186,93 @@ esac
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
-echo "Downloading $owner/$repo ($ref) ..."
-fetch "$tarball_url" > "$tmp_dir/source.tar.gz"
+tarball_file=$tmp_dir/source.tar.gz
+if [ -n "$archive" ]; then
+  [ -f "$archive" ] || fail_exit "Archive not found: $archive"
+  tarball_file=$archive
+fi
 
-# codeload always wraps the tree in one top directory; strip it so install.sh
-# ends up directly under the install directory.
+# A git checkout (including worktrees and submodules, where .git is a file
+# containing "gitdir: ...") is updated with git alone. No archive is fetched
+# for it, so no network work happens beyond the fetch itself.
+if [ -d "$install_dir/.git" ] || [ -f "$install_dir/.git" ]; then
+  echo "Updating the git checkout in $install_dir ..."
+  command -v git >/dev/null 2>&1 \
+    || fail_exit "Updating a git checkout needs git, but it was not found in PATH."
+  git -C "$install_dir" fetch --tags --force origin "$ref" \
+    || fail_exit "Fetching $ref from origin in $install_dir failed."
+  git -C "$install_dir" reset --hard FETCH_HEAD
+  echo "Updated the project files in $install_dir"
+  cd "$install_dir"
+  # shellcheck disable=SC2086
+  sh ./install.sh $inner_flags
+  exit 0
+fi
+
+# Elsewhere the archive is downloaded (or taken from --archive) and
+# extracted into a scratch staging directory first. Only an intact staging
+# tree (tar succeeded, install.sh present) may replace the project files, so
+# a corrupt or truncated download can never leave a half-destroyed install
+# behind.
+if [ -n "$archive" ]; then
+  echo "Installing from the local archive $archive"
+else
+  echo "Downloading $owner/$repo ($ref) ..."
+  fetch "$tarball_url" > "$tarball_file"
+fi
+staging=$tmp_dir/staging
+mkdir -p "$staging"
+tar -xzf "$tarball_file" -C "$staging" --strip-components=1
+[ -f "$staging/install.sh" ] \
+  || fail_exit "The source archive has no install.sh; leaving the existing install untouched."
+
+# A previous run leaves generated files in the install directory (.env with
+# the resolved XDG paths; the container-owned auths, plugins, static, logs
+# and legacy data/config trees; and, when the XDG bases overlap the install
+# directory, the config.yaml, credentials.txt and config.yaml backups of the
+# XDG layout). An update keeps those, removes everything else, then copies in
+# the staged files so sources deleted upstream do not linger. Broken
+# symlinks count as entries too (-e cannot see them). rm -rf removes only
+# the link of a symlinked entry, never its target, so no check can be made
+# to follow a link outside the tree.
 mkdir -p "$install_dir"
-tar -xzf "$tmp_dir/source.tar.gz" -C "$install_dir" --strip-components=1
+for entry in "$install_dir"/* "$install_dir"/.[!.]* "$install_dir"/..?*; do
+  [ -e "$entry" ] || [ -L "$entry" ] || continue
+  case ${entry##*/} in
+    .env|auths|plugins|static|logs|data|config) continue ;;
+    config.yaml|credentials.txt) continue ;;
+    config.yaml.backup.*) continue ;;
+  esac
+  rm -rf -- "$entry"
+done
 
+# The staged tree is pruned of anything generated before the copy, so no
+# archive can smuggle kept state out of the keep-list (.env, tokens,
+# credentials). Only project source files may win.
+for entry in "$staging"/* "$staging"/.[!.]* "$staging"/..?*; do
+  [ -e "$entry" ] || [ -L "$entry" ] || continue
+  case ${entry##*/} in
+    .env|auths|plugins|static|logs) rm -rf -- "$entry" ;;
+    config.yaml|credentials.txt|config.yaml.backup.*) rm -rf -- "$entry" ;;
+    data)
+      [ -d "$entry" ] && [ ! -L "$entry" ] || { rm -rf -- "$entry"; continue; }
+      for child in "$entry"/* "$entry"/.[!.]* "$entry"/..?*; do
+        [ -e "$child" ] || [ -L "$child" ] || continue
+        case ${child##*/} in
+          .gitkeep) continue ;;
+        esac
+        rm -rf -- "$child"
+      done
+      ;;
+    config)
+      [ -d "$entry" ] && [ ! -L "$entry" ] || { rm -rf -- "$entry"; continue; }
+      rm -rf -- "$entry"/config.yaml "$entry"/config.yaml.backup.* \
+        "$entry"/credentials.txt
+      ;;
+  esac
+done
+
+tar -cf - -C "$staging" . | tar -xf - -C "$install_dir"
 echo "Installed files in $install_dir"
 cd "$install_dir"
 

@@ -1,7 +1,4 @@
-# Installs the toolchain pinned in mise.toml (uv) and runs the pytest suite.
-# The runner image ships Docker and Compose v2, which the mount and Tailscale
-# tests need for "docker compose config" rendering; no daemon work is required.
-name: Tests
+name: CI
 
 on:
   push:
@@ -17,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pytest:
-    name: pytest
+  tests:
+    name: tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

@@ -216,3 +216,14 @@ The management API still requires its password. Proxy routes require a client AP
 ## Release source
 
 The default version is `7.2.121`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.
+
+## Tests
+
+The test suite runs the real scripts (`bootstrap.sh`, `install.sh`, `uninstall.sh`) in throwaway copies of the tree, with throwaway XDG directories. It creates no container and downloads no release.
+
+```sh
+mise install   # installs the uv version pinned in mise.toml
+uv run pytest
+```
+
+The Compose mount test needs the `docker` CLI. Pytest skips it when Docker is missing.

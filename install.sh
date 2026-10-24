@@ -11,11 +11,13 @@ set -eu
 
 usage() {
   cat <<'EOF'
-Usage: ./install.sh [--reconfigure] [--no-start]
+Usage: ./install.sh [--reconfigure] [--no-start] [--tailscale]
 
 Options:
   --reconfigure  Back up and replace the existing config.yaml.
   --no-start     Create the configuration without building or starting Docker.
+  --tailscale    Bind all published ports to this host's Tailscale address,
+                 so only machines on the tailnet can reach the service.
 
 Optional environment variables:
   MANAGEMENT_SECRET        Management UI password (16 or more safe characters).
@@ -28,10 +30,12 @@ EOF
 
 reconfigure=false
 start=true
+tailscale=false
 for arg in "$@"; do
   case "$arg" in
     --reconfigure) reconfigure=true ;;
     --no-start) start=false ;;
+    --tailscale) tailscale=true ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; usage >&2; exit 2 ;;
   esac
@@ -70,6 +74,30 @@ case "$allow_remote" in
   true|false) ;;
   *) echo "ALLOW_REMOTE_MANAGEMENT must be true or false." >&2; exit 2 ;;
 esac
+
+# Resolve this host's Tailscale address from the CLI, or from the tailscale0
+# interface when the CLI is absent. Anything outside the CGNAT range is
+# refused so a broken resolver cannot silently expose the ports elsewhere.
+bind_address=127.0.0.1
+if [ "$tailscale" = true ]; then
+  ts_ip=
+  if command -v tailscale >/dev/null 2>&1; then
+    ts_ip=$(tailscale ip -4 2>/dev/null || true)
+  fi
+  if [ -z "$ts_ip" ] && command -v ip >/dev/null 2>&1; then
+    ts_ip=$(ip -4 -o addr show dev tailscale0 2>/dev/null | awk '{print $4}' | head -n 1)
+    ts_ip=${ts_ip%/*}
+  fi
+  if [ -z "$ts_ip" ] \
+    || ! printf '%s\n' "$ts_ip" | grep -Eq '^100(\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7]))(\.[0-9]{1,3}){2}$'; then
+    echo "No Tailscale address was found on this host." >&2
+    echo "Install Tailscale, run 'tailscale up', then re-run with --tailscale." >&2
+    echo "Without it, the ports stay bound to 127.0.0.1." >&2
+    exit 1
+  fi
+  bind_address=$ts_ip
+  echo "Binding all published ports to the Tailscale address $bind_address"
+fi
 
 mkdir -p "$conf_dir" "$data_dir/auths" "$data_dir/plugins" "$data_dir/static" "$state_dir/logs"
 chmod 700 "$conf_dir" "$data_dir" "$data_dir/auths" "$data_dir/plugins" "$data_dir/static" "$state_dir" "$state_dir/logs"
@@ -139,7 +167,7 @@ fi
 if [ ! -f .env ]; then
   {
     printf 'CLI_PROXY_VERSION=7.2.121\n'
-    printf 'BIND_ADDRESS=127.0.0.1\n'
+    printf 'BIND_ADDRESS=%s\n' "$bind_address"
     printf 'CLI_PROXY_PORT=8317\n'
     printf 'TZ=%s\n' "${TZ:-UTC}"
     printf 'HOST_UID=%s\n' "$(id -u)"
@@ -152,7 +180,16 @@ if [ ! -f .env ]; then
   echo "Created .env for user $(id -u):$(id -g)"
 else
   echo "Keeping the existing .env"
+  if [ "$tailscale" = true ]; then
+    sed -e "s|^BIND_ADDRESS=.*|BIND_ADDRESS=$bind_address|" .env > .env.new
+    grep -q '^BIND_ADDRESS=' .env || echo "BIND_ADDRESS=$bind_address" >> .env.new
+    mv .env.new .env
+    chmod 600 .env
+    echo "Updated BIND_ADDRESS to $bind_address in .env"
+  fi
 fi
+bind_address=$(sed -n 's/^BIND_ADDRESS=//p' .env | tail -n 1)
+: "${bind_address:=127.0.0.1}"
 
 if [ "$start" = false ]; then
   echo "Configuration is ready. Run 'docker compose up -d --build' to start it."
@@ -172,8 +209,12 @@ docker compose config --quiet
 docker compose up --detach --build
 
 echo
-echo "CLIProxyAPI is starting at http://127.0.0.1:8317"
-echo "Management UI: http://127.0.0.1:8317/management.html"
+echo "CLIProxyAPI is starting at http://$bind_address:8317"
+echo "Management UI: http://$bind_address:8317/management.html"
+if [ "$bind_address" != 127.0.0.1 ]; then
+  echo "The service is bound to $bind_address, so http://127.0.0.1:8317 no longer answers."
+  echo "Use this address from this machine too, or the MagicDNS name of this host."
+fi
 echo "Check status with: docker compose ps"
 echo "Follow logs with:  docker compose logs -f cli-api-proxy"
 if [ "$created_config" = true ]; then

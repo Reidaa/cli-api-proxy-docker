@@ -20,6 +20,7 @@ fail() {
 
 # --help exits 0 and shows usage.
 "$bootstrap" --help | grep -q -- '--dir' || fail '--help must show the --dir option'
+"$bootstrap" --help | grep -q -- '--tailscale' || fail '--help must show the --tailscale option'
 
 # An unknown argument exits 2 with a usage hint.
 "$bootstrap" --bogus 2>/dev/null && fail 'unknown option must fail'

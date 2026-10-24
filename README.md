@@ -44,11 +44,46 @@ curl -fsSL https://raw.githubusercontent.com/Reidaa/cli-api-proxy-docker/main/bo
 - `--dir PATH` sets the install directory (default: `~/.local/share/cli-api-proxy`).
 - `--version TAG` installs a GitHub tag instead of the `main` branch.
 - `--no-start` configures without building or starting Docker.
+- `--tailscale` binds all published ports to this host's Tailscale address; see [Tailscale](#tailscale).
 - `--reconfigure` is passed through to `install.sh`.
 - `--uninstall --purge` removes the installation; see [Uninstall](#uninstall).
 
 If `docker` or `docker compose` is missing, the script stops before any
 download and prints the install hint `curl -fsSL https://get.docker.com | sh`.
+
+## Tailscale
+
+With Tailscale already running on the host, install with the `--tailscale`
+option:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Reidaa/cli-api-proxy-docker/main/bootstrap.sh | sh -s -- --tailscale
+```
+
+The installer resolves the host's Tailscale address (`tailscale ip -4`, or the
+`tailscale0` interface) and binds every published port to it. Only machines on
+your tailnet can reach the service. From any of them, open:
+
+- API: `http://<tailscale-address>:8317`
+- Management UI: `http://<tailscale-address>:8317/management.html`
+
+The MagicDNS name of the host works in place of the address. The installer
+refuses an address outside the Tailscale CGNAT range (`100.64.0.0/10`) so a
+broken resolver cannot expose the ports elsewhere.
+
+Two consequences of the single-address binding:
+
+1. `http://127.0.0.1:8317` no longer answers on the host. Use the Tailscale
+   address (or the MagicDNS name) locally as well.
+2. The OAuth callback ports move to the Tailscale address with everything
+   else. Provider logins that redirect to `localhost` need a tunnel
+   (`ssh -L`) or a temporary `BIND_ADDRESS=127.0.0.1` re-run.
+
+If `tailscaled` is stopped, the published binding pauses with it and returns
+when Tailscale comes back.
+
+To go back to loopback-only, set `BIND_ADDRESS=127.0.0.1` in `.env` and run
+`./install.sh` again.
 
 ## Uninstall
 

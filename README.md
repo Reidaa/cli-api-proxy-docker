@@ -132,7 +132,7 @@ Use the management UI to add provider credentials or start an OAuth login.
 
 ## Connect a client
 
-The default configuration does not create a client API key. To require client authentication, add one or more keys to `api-keys` in the generated `config.yaml` (default: `~/.config/cli-api-proxy/config.yaml`).
+The default configuration does not create a client API key. To require client authentication, add one or more keys to `access.api-keys` in the generated `config.yaml` (default: `~/.config/cli-api-proxy/config.yaml`).
 
 For an OpenAI-compatible client, use these values:
 
@@ -155,13 +155,20 @@ The installer creates these local files and directories:
 
 | Path | Purpose |
 | --- | --- |
-| `.env` | The image version, network address, time zone, and host user IDs |
+| `.env` | The network address, time zone, and host user IDs; optional version pin |
 | `$XDG_CONFIG_HOME/cli-api-proxy/config.yaml` | The CLIProxyAPI configuration |
 | `$XDG_CONFIG_HOME/cli-api-proxy/credentials.txt` | The generated management password |
 | `$XDG_DATA_HOME/cli-api-proxy/auths/` | OAuth tokens and provider credentials |
 | `$XDG_STATE_HOME/cli-api-proxy/logs/` | File logs, if file logging is active |
 | `data/plugins/` | Optional dynamic plugins |
 | `data/static/` | The downloaded management panel |
+
+New installations use the v8 configuration layout (`config-version: 8`). Client
+keys go in `access.api-keys`; the root `api-keys` section configures upstream
+providers. Existing configurations are kept when you rerun the installer and
+remain supported by v8. To migrate an existing configuration while preserving
+its settings, save it through the v8 management API. `--reconfigure` backs up
+and replaces the configuration with the new template; it resets custom settings.
 
 Edit the generated `config.yaml` (default: `~/.config/cli-api-proxy/config.yaml`) to add advanced provider configuration. The management UI can also change this file and creates temporary validation files beside the configuration while saving.
 
@@ -232,11 +239,16 @@ docker compose down
 
 ## Update
 
-1. Change `CLI_PROXY_VERSION` in `.env` to a published CLIProxyAPI release.
+1. Set `CLI_PROXY_VERSION` in `.env` to a published CLIProxyAPI release. The
+   file has no such line by default; add one to pin a release.
 2. Run `./install.sh`.
 
 Re-running the one-line bootstrap gives the same result: it refreshes the
 project files and re-runs `install.sh` from the install directory (default: `~/.local/share/cli-api-proxy`).
+
+An existing `.env` keeps its own `CLI_PROXY_VERSION` line. The bootstrap alone
+does not upgrade that installation. Remove the line to follow the repository
+default, or change it to the release you want.
 
 The build fails if the release has no matching archive or checksum.
 
@@ -246,7 +258,7 @@ The Compose file binds all ports to `127.0.0.1` by default. Thus, other computer
 
 CAUTION: Set `BIND_ADDRESS=0.0.0.0` only on a protected host. This value exposes the API and OAuth callback ports on all interfaces.
 
-The application treats Docker host traffic as remote traffic. Therefore, `remote-management.allow-remote` is `true` in the generated configuration.
+The application treats Docker host traffic as remote traffic. Therefore, `management.allow-remote` is `true` in the generated configuration.
 
 The management API still requires its password. Proxy routes require a client API key only when keys are configured.
 
@@ -254,7 +266,7 @@ On SELinux-enforcing hosts (Fedora, RHEL, Fedora CoreOS), the Compose mounts car
 
 ## Release source
 
-The default version is `7.2.121`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.
+The default version is `8.0.42`, defined in `compose.yaml`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.
 
 ## Tests
 

@@ -1,10 +1,10 @@
 services:
   cli-api-proxy:
-    image: local/cli-api-proxy:${CLI_PROXY_VERSION:-7.2.121}
+    image: local/cli-api-proxy:${CLI_PROXY_VERSION:-8.0.42}
     build:
       context: .
       args:
-        CLI_PROXY_VERSION: ${CLI_PROXY_VERSION:-7.2.121}
+        CLI_PROXY_VERSION: ${CLI_PROXY_VERSION:-8.0.42}
     container_name: cli-api-proxy
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     environment:

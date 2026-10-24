@@ -45,6 +45,10 @@ def test_install_writes_to_xdg_dirs(stage, xdg, run_sh):
     assert f"CLI_PROXY_DATA_DIR={xdg.data}" in env_lines
     assert f"CLI_PROXY_STATE_DIR={xdg.state}" in env_lines
 
+    # The release default lives in compose.yaml. The generated .env only gets
+    # a version when the user pins one.
+    assert not any(line.startswith("CLI_PROXY_VERSION=") for line in env_lines)
+
 
 def test_legacy_layout_migrates_to_xdg(stage, xdg, run_sh):
     copy = stage()

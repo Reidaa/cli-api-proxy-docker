@@ -3,7 +3,7 @@
 # Exit 0: restarted, or nothing to restart. Exit 1: it did not become healthy.
 set -eu
 
-cd -- "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+cd -- "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
   echo "Docker Compose is unavailable. The container was not restarted."

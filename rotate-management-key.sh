@@ -23,12 +23,20 @@ for arg in "$@"; do
   esac
 done
 
-root_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+root_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 cd "$root_dir"
 umask 077
 
-config_file=config/config.yaml
-credentials_file=config/credentials.txt
+# Resolve the XDG config directory the same way install.sh does and honor the
+# path it recorded in .env.
+conf_dir=${XDG_CONFIG_HOME:-$HOME/.config}/cli-api-proxy
+if [ -f .env ]; then
+  recorded=$(sed -n 's/^CLI_PROXY_CONFIG_DIR=//p' .env | tail -n 1)
+  [ -n "$recorded" ] && conf_dir=$recorded
+fi
+
+config_file=$conf_dir/config.yaml
+credentials_file=$conf_dir/credentials.txt
 if [ ! -f "$config_file" ]; then
   echo "$config_file does not exist. Run ./install.sh first." >&2
   exit 1
@@ -48,7 +56,7 @@ if ! printf '%s\n' "$new_secret" | grep -Eq '^[A-Za-z0-9._~-]{16,}$'; then
   exit 2
 fi
 
-config_tmp=$(mktemp config/.config.yaml.rotate.XXXXXX)
+config_tmp=$(mktemp "$conf_dir/.config.yaml.rotate.XXXXXX")
 credentials_tmp=
 cleanup() {
   rm -f "$config_tmp"
@@ -89,7 +97,7 @@ cp -p "$config_file" "$backup"
 cat "$config_tmp" > "$config_file"
 chmod 600 "$config_file"
 
-credentials_tmp=$(mktemp config/.credentials.rotate.XXXXXX)
+credentials_tmp=$(mktemp "$conf_dir/.credentials.rotate.XXXXXX")
 if [ -f "$credentials_file" ]; then
   awk -v secret="$new_secret" '
     /^Management UI password:[[:space:]]*/ {

@@ -248,6 +248,8 @@ The application treats Docker host traffic as remote traffic. Therefore, `remote
 
 The management API still requires its password. Proxy routes require a client API key only when keys are configured.
 
+On SELinux-enforcing hosts (Fedora, RHEL, Fedora CoreOS), the Compose mounts carry the `:z` suffix. Docker relabels those directories so the container can read and write them; on hosts without SELinux the suffix is ignored.
+
 ## Release source
 
 The default version is `7.2.121`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.

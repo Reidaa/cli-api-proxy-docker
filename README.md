@@ -1,5 +1,7 @@
 # CLIProxyAPI container
 
+[![Tests](https://github.com/Reidaa/cli-api-proxy-docker/actions/workflows/tests.yml/badge.svg)](https://github.com/Reidaa/cli-api-proxy-docker/actions/workflows/tests.yml)
+
 This project builds and runs [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) in a Docker container.
 
 The image downloads a versioned release and checks its SHA-256 checksum. It supports Linux AMD64 and ARM64 hosts.

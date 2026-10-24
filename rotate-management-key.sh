@@ -67,7 +67,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if ! awk -v secret="$new_secret" '
-  /^remote-management:[[:space:]]*(#.*)?$/ {
+  /^(management|remote-management):[[:space:]]*(#.*)?$/ {
     in_remote = 1
     print
     next
@@ -87,7 +87,7 @@ if ! awk -v secret="$new_secret" '
     if (!changed) exit 42
   }
 ' "$config_file" > "$config_tmp"; then
-  echo "Could not find remote-management.secret-key in $config_file." >&2
+  echo "Could not find management.secret-key or remote-management.secret-key in $config_file." >&2
   exit 1
 fi
 

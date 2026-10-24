@@ -42,6 +42,18 @@ printf '%s\n' "$rendered" | grep -Fx "        source: $state_dir/logs" >/dev/nul
 printf '%s\n' "$rendered" | grep -Fx "        target: /data/logs" >/dev/null \
   || fail 'log mount target must be /data/logs'
 
+# Every bind mount must carry the :z SELinux relabel so the container can
+# read the mounted files on enforcing hosts such as Fedora CoreOS. Without
+# it the proxy cannot load its configuration and crash-loops.
+printf '%s\n' "$rendered" | awk '
+  /^        target: / { target=$2 }
+  /^          selinux: z$/ { print target }
+' > selinux_targets
+for target in /config /data /data/logs; do
+  grep -Fx "$target" selinux_targets >/dev/null \
+    || fail "the $target mount must include the :z SELinux relabel"
+done
+
 # A bare config.yaml mount would break the management UI validation writes.
 if printf '%s\n' "$rendered" | grep -F "target: /config/config.yaml" >/dev/null; then
   fail 'config.yaml must not be mounted without its writable parent directory'

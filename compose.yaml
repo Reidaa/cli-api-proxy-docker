@@ -22,9 +22,11 @@ services:
     volumes:
       # Resolved XDG paths are recorded in .env by install.sh (config in
       # ~/.config/cli-api-proxy, data in ~/.local/share, logs in ~/.local/state).
-      - "${CLI_PROXY_CONFIG_DIR:-./config}:/config"
-      - "${CLI_PROXY_DATA_DIR:-./data}:/data"
-      - "${CLI_PROXY_STATE_DIR:-./data}/logs:/data/logs"
+      # The :z suffix relabels each tree for SELinux so the container can read
+      # its files on enforcing hosts (Fedora CoreOS, RHEL, Fedora).
+      - "${CLI_PROXY_CONFIG_DIR:-./config}:/config:z"
+      - "${CLI_PROXY_DATA_DIR:-./data}:/data:z"
+      - "${CLI_PROXY_STATE_DIR:-./data}/logs:/data/logs:z"
     init: true
     restart: unless-stopped
     stop_grace_period: 20s

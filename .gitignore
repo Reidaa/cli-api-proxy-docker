@@ -4,3 +4,6 @@ config/config.yaml.backup.*
 config/credentials.txt
 data/*
 !data/.gitkeep
+.venv/
+__pycache__/
+.pytest_cache/

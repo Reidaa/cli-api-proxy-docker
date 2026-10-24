@@ -1,0 +1,16 @@
+[project]
+name = "cli-api-proxy-docker"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.2",
+    "ty>=0.0.91",
+]
+
+[tool.pytest.ini_options]
+# Only collect tests from the tests directory, not the whole tree.
+testpaths = ["tests"]

@@ -163,10 +163,11 @@ else
 fi
 
 # .env lives beside compose.yaml (its only auto-discovery location) and needs
-# the resolved XDG paths for the volume mounts.
+# the resolved XDG paths for the volume mounts. The release version stays out
+# of it: compose.yaml owns the default, and a user adds CLI_PROXY_VERSION here
+# only to pin a different release.
 if [ ! -f .env ]; then
   {
-    printf 'CLI_PROXY_VERSION=7.2.121\n'
     printf 'BIND_ADDRESS=%s\n' "$bind_address"
     printf 'CLI_PROXY_PORT=8317\n'
     printf 'TZ=%s\n' "${TZ:-UTC}"

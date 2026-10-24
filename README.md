@@ -155,7 +155,7 @@ The installer creates these local files and directories:
 
 | Path | Purpose |
 | --- | --- |
-| `.env` | The image version, network address, time zone, and host user IDs |
+| `.env` | The network address, time zone, and host user IDs; optional version pin |
 | `$XDG_CONFIG_HOME/cli-api-proxy/config.yaml` | The CLIProxyAPI configuration |
 | `$XDG_CONFIG_HOME/cli-api-proxy/credentials.txt` | The generated management password |
 | `$XDG_DATA_HOME/cli-api-proxy/auths/` | OAuth tokens and provider credentials |
@@ -232,7 +232,8 @@ docker compose down
 
 ## Update
 
-1. Change `CLI_PROXY_VERSION` in `.env` to a published CLIProxyAPI release.
+1. Set `CLI_PROXY_VERSION` in `.env` to a published CLIProxyAPI release. The
+   file has no such line by default; add one to pin a release.
 2. Run `./install.sh`.
 
 Re-running the one-line bootstrap gives the same result: it refreshes the
@@ -254,7 +255,7 @@ On SELinux-enforcing hosts (Fedora, RHEL, Fedora CoreOS), the Compose mounts car
 
 ## Release source
 
-The default version is `7.2.121`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.
+The default version is `8.0.42`, defined in `compose.yaml`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.
 
 ## Tests
 

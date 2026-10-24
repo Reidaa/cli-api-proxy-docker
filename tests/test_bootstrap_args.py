@@ -11,6 +11,7 @@ def test_help_lists_the_options(repo, run_sh):
     result = run_sh("bootstrap.sh", "--help", cwd=repo, check=False)
     assert result.returncode == 0
     assert "--dir" in result.stdout
+    assert "--tailscale" in result.stdout
 
 
 def test_unknown_option_fails_with_usage(repo, run_sh):

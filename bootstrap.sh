@@ -21,6 +21,7 @@ Options (after "sh -s --"):
                   data and state directories (this includes provider auth
                   tokens, so it is opt-in).
   --no-start      Configure only; skip the Docker build and start.
+  --tailscale     Bind all published ports to this host's Tailscale address.
   --reconfigure   Back up and replace the existing config.yaml.
   -h, --help      Show this help.
 EOF
@@ -46,7 +47,7 @@ while [ "$#" -gt 0 ]; do
     --version)
       [ "$#" -ge 2 ] || { echo "Option --version needs a value." >&2; exit 2; }
       case "$2" in
-        --dir|--version|--no-start|--reconfigure|--uninstall|--purge|-h|--help|'')
+        --dir|--version|--no-start|--reconfigure|--uninstall|--purge|--tailscale|-h|--help|'')
           echo "Invalid value for --version: $2" >&2
           exit 2
           ;;
@@ -54,7 +55,7 @@ while [ "$#" -gt 0 ]; do
       ref=$2
       shift 2
       ;;
-    --no-start|--reconfigure)
+    --no-start|--reconfigure|--tailscale)
       inner_flags="${inner_flags:+$inner_flags }$1"
       shift
       ;;
@@ -116,8 +117,8 @@ fetch() {
 # that would fetch code just to remove it.
 if [ "$mode" = uninstall ]; then
   case "$inner_flags" in
-    --no-start*|*--no-start|--reconfigure*|*--reconfigure)
-      fail_exit "--no-start and --reconfigure do not make sense with --uninstall."
+    --no-start*|*--no-start|--reconfigure*|*--reconfigure|--tailscale*|*--tailscale)
+      fail_exit "--no-start, --reconfigure and --tailscale do not make sense with --uninstall."
       ;;
   esac
   if [ -x "$install_dir/uninstall.sh" ]; then

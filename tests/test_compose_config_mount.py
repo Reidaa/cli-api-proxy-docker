@@ -35,6 +35,21 @@ def test_compose_mounts_the_xdg_directories(stage, xdg, run_sh):
     assert "        target: /data" in lines
     assert f"        source: {xdg.state / 'logs'}" in lines
     assert "        target: /data/logs" in lines
+
+    # Every bind mount must carry the :z SELinux relabel, or the container
+    # cannot read its files on enforcing hosts (Fedora, RHEL, CoreOS). The
+    # rendered relabel nests under the mount's target line.
+    relabeled = set()
+    current = None
+    for line in lines:
+        if line.startswith("        target: "):
+            current = line.split()[1]
+        elif line == "          selinux: z" and current is not None:
+            relabeled.add(current)
+            current = None
+    for target in ("/config", "/data", "/data/logs"):
+        assert target in relabeled
+
     # The shell negative check was a plain substring search at any
     # indentation; keep it a substring so it cannot silently miss a mount.
     assert "target: /config/config.yaml" not in rendered

@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate is the only dependency bot for this repo; Dependabot stays disabled.",
   "extends": [
-    "config:recommended"
-  ]
+    "config:recommended",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "minimumReleaseAge": "3 days"
 }

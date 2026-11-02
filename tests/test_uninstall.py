@@ -85,3 +85,16 @@ def test_bootstrap_uninstall_fallback_reports_kept_paths(repo, xdg, run_sh, tmp_
     )
     assert result.returncode == 0
     assert "Kept" in result.stderr
+
+
+def test_uninstall_keeps_a_link_to_another_install(stage, xdg, run_sh, tmp_path):
+    copy = stage()
+    xdg.bin_home.mkdir()
+    link = xdg.bin_home / "cli-api-proxy"
+    link.symlink_to(tmp_path / "elsewhere" / "cli-api-proxy")
+    run_sh(
+        "./uninstall.sh", cwd=copy,
+        env={**xdg.env, "PATH": stub_docker(tmp_path)},
+    )
+
+    assert link.is_symlink()

@@ -56,6 +56,14 @@ else
   echo "Docker Compose is unavailable. If 'cli-api-proxy' is running, stop it manually (docker rm -f cli-api-proxy)." >&2
 fi
 
+# Remove the PATH link that bootstrap.sh created, but only when it points
+# at this install.
+link=${XDG_BIN_HOME:-$HOME/.local/bin}/cli-api-proxy
+if [ -L "$link" ] && [ "$(readlink "$link")" = "$root_dir/cli-api-proxy" ]; then
+  rm -f "$link"
+  echo "Removed the command link $link"
+fi
+
 # A git checkout never reaches this point: the guard above aborts first.
 echo "Removing the project files in $root_dir"
 rm -rf "$root_dir"

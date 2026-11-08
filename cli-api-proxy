@@ -66,6 +66,9 @@ update() {
 
   cd "$root_dir"
   umask 077
+  # Compose prefers a shell variable over .env, so an exported
+  # CLI_PROXY_VERSION would build the old release under the new pin.
+  unset CLI_PROXY_VERSION
   if [ ! -f .env ]; then
     echo "No .env in $root_dir. Run 'cli-api-proxy install' first." >&2
     exit 1

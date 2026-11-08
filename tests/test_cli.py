@@ -158,6 +158,25 @@ def test_update_compares_with_the_running_container_not_the_pin(
     assert "compose up --detach --build" in (tmp_path / "docker.log").read_text()
 
 
+def test_update_unsets_an_exported_version_before_the_rebuild(
+    stage, xdg, run_sh, tmp_path
+):
+    """Compose prefers a shell variable over .env, so update must drop it."""
+    copy = stage()
+    run_sh("install.sh", "--no-start", cwd=copy, env=xdg.env)
+
+    run_sh(
+        "cli-api-proxy",
+        "update",
+        cwd=copy,
+        env={**xdg.env, **stub_tools(tmp_path), "CLI_PROXY_VERSION": "1.0.0"},
+    )
+
+    assert env_version(copy) == ["CLI_PROXY_VERSION=9.1.0"]
+    assert "compose up --detach --build" in (tmp_path / "docker.log").read_text()
+    assert not (tmp_path / "env.log").exists()
+
+
 def test_failed_update_restores_the_previous_pin(stage, xdg, run_sh, tmp_path):
     copy = stage()
     run_sh("install.sh", "--no-start", cwd=copy, env=xdg.env)

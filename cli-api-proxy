@@ -83,16 +83,18 @@ update() {
     ''|*[!0-9A-Za-z._-]*) echo "Invalid version: $version" >&2; exit 2 ;;
   esac
 
-  # Without a pin in .env, compose.yaml holds the default version.
-  current=$(sed -n 's/^CLI_PROXY_VERSION=//p' .env | tail -n 1)
-  [ -n "$current" ] \
-    || current=$(sed -n 's/.*CLI_PROXY_VERSION:-\([^}]*\)}.*/\1/p' compose.yaml | head -n 1)
+  # The image tag of the container says which release really runs. The
+  # .env pin alone does not: a pin written before a failed rebuild, or an
+  # exported CLI_PROXY_VERSION, can leave the container on another release.
+  # Without a container, there is nothing to compare and the update proceeds.
+  current=$(docker inspect --format '{{.Config.Image}}' cli-api-proxy 2>/dev/null \
+    | sed -n 's/.*://p')
   if [ "$version" = "$current" ]; then
     echo "CLIProxyAPI is already at version $version."
     exit 0
   fi
 
-  echo "Updating CLIProxyAPI from $current to $version"
+  echo "Updating CLIProxyAPI ${current:+from $current }to $version"
   cp -p .env .env.previous
   { grep -v '^CLI_PROXY_VERSION=' .env || true; echo "CLI_PROXY_VERSION=$version"; } > .env.new
   mv .env.new .env

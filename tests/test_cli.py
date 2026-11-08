@@ -52,17 +52,32 @@ def test_install_through_the_link_configures_the_install_dir(
     assert (xdg.conf / "config.yaml").is_file()
 
 
-def stub_tools(tmp_path: Path, *, docker_up_fails: bool = False) -> dict[str, str]:
+def stub_tools(
+    tmp_path: Path, *, docker_up_fails: bool = False, running: str | None = None
+) -> dict[str, str]:
     """Return env values with stub docker and curl first on PATH.
 
-    docker appends its arguments to docker.log. curl answers like the
-    GitHub "latest release" API with tag v9.1.0.
+    docker appends its arguments to docker.log and any CLI_PROXY_VERSION it
+    inherits to env.log. "docker inspect" answers with the image of a
+    container running `running`, or fails when no container runs. curl
+    answers like the GitHub "latest release" API with tag v9.1.0.
     """
     stub_bin = tmp_path / "stub-bin"
     stub_bin.mkdir()
     log = tmp_path / "docker.log"
+    env_log = tmp_path / "env.log"
     fail = 'case "$*" in *up*) exit 1 ;; esac\n' if docker_up_fails else ""
-    (stub_bin / "docker").write_text(f'#!/bin/sh\necho "$*" >> "{log}"\n{fail}exit 0\n')
+    inspect = (
+        f'case "$1" in inspect) echo "local/cli-api-proxy:{running}"; exit 0 ;; esac\n'
+        if running
+        else 'case "$1" in inspect) exit 1 ;; esac\n'
+    )
+    (stub_bin / "docker").write_text(
+        "#!/bin/sh\n"
+        f'echo "$*" >> "{log}"\n'
+        f'[ -z "${{CLI_PROXY_VERSION+x}}" ] || echo "CLI_PROXY_VERSION=$CLI_PROXY_VERSION" >> "{env_log}"\n'
+        f"{inspect}{fail}exit 0\n"
+    )
     (stub_bin / "curl").write_text(
         '#!/bin/sh\nprintf \'{\\n  "tag_name": "v9.1.0",\\n}\\n\'\n'
     )
@@ -109,15 +124,38 @@ def test_update_to_a_given_version_replaces_the_pin(stage, xdg, run_sh, tmp_path
 def test_update_at_the_latest_version_does_nothing(stage, xdg, run_sh, tmp_path):
     copy = stage()
     run_sh("install.sh", "--no-start", cwd=copy, env=xdg.env)
-    with (copy / ".env").open("a") as env:
-        env.write("CLI_PROXY_VERSION=9.1.0\n")
 
     result = run_sh(
-        "cli-api-proxy", "update", cwd=copy, env={**xdg.env, **stub_tools(tmp_path)}
+        "cli-api-proxy",
+        "update",
+        cwd=copy,
+        env={**xdg.env, **stub_tools(tmp_path, running="9.1.0")},
     )
 
     assert "already" in result.stdout
-    assert not (tmp_path / "docker.log").exists()
+    assert "compose up" not in (tmp_path / "docker.log").read_text()
+
+
+def test_update_compares_with_the_running_container_not_the_pin(
+    stage, xdg, run_sh, tmp_path
+):
+    """A pin in .env that the container never got must still trigger a rebuild."""
+    copy = stage()
+    run_sh("install.sh", "--no-start", cwd=copy, env=xdg.env)
+    with (copy / ".env").open("a") as env:
+        env.write("CLI_PROXY_VERSION=9.1.0\n")
+
+    run_sh(
+        "cli-api-proxy",
+        "update",
+        "--version",
+        "9.1.0",
+        cwd=copy,
+        env={**xdg.env, **stub_tools(tmp_path, running="1.0.0")},
+    )
+
+    assert env_version(copy) == ["CLI_PROXY_VERSION=9.1.0"]
+    assert "compose up --detach --build" in (tmp_path / "docker.log").read_text()
 
 
 def test_failed_update_restores_the_previous_pin(stage, xdg, run_sh, tmp_path):

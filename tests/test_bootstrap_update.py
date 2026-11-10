@@ -101,18 +101,20 @@ def seed_install(dst: Path) -> None:
     (dst / "config" / "config.yaml").write_text("secret\n")
 
 
-def run_bootstrap(repo: Path, tmp_path: Path, *args: str):
+def run_bootstrap(
+    repo: Path, tmp_path: Path, *args: str, bin_home: Path | None = None
+):
     """Run bootstrap.sh with a stubbed docker on PATH.
 
-    XDG_BIN_HOME points at tmp_path/bin, so the command link never lands in
-    the real ~/.local/bin.
+    XDG_BIN_HOME points at tmp_path/bin (or bin_home), so the command link
+    never lands in the real ~/.local/bin.
     """
     return subprocess.run(
         ["/bin/sh", str(repo / "bootstrap.sh"), *args],
         env={
             **os.environ,
             "PATH": stub_docker(tmp_path),
-            "XDG_BIN_HOME": str(tmp_path / "bin"),
+            "XDG_BIN_HOME": str(bin_home or tmp_path / "bin"),
         },
         capture_output=True,
         text=True,
@@ -323,6 +325,22 @@ def test_install_links_the_command_into_the_bin_dir(
     link = tmp_path / "bin" / "cli-api-proxy"
     assert link.is_symlink()
     assert os.readlink(link) == str(installed / "cli-api-proxy")
+
+
+def test_install_runs_when_the_bin_dir_cannot_be_created(
+    repo: Path, installed: Path, tmp_path: Path
+) -> None:
+    # mkdir -p fails below a regular file, as it does for a root-owned or
+    # read-only ~/.local/bin. The link is skipped; install.sh still runs.
+    (tmp_path / "blocker").write_text("file\n")
+    result = run_bootstrap(
+        repo, tmp_path, "--dir", str(installed),
+        "--archive", str(make_tarball(tmp_path, "CLI", include_cli=True)),
+        "--no-start", bin_home=tmp_path / "blocker" / "bin",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "FAKEDINSTALL CLI --no-start" in result.stdout
+    assert "Could not link" in result.stderr
 
 
 def test_install_keeps_a_foreign_file_at_the_link_path(

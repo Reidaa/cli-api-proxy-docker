@@ -132,7 +132,9 @@ fetch() {
 
 # Put the cli-api-proxy command on PATH as a symlink in $XDG_BIN_HOME
 # (default ~/.local/bin). Only a missing path or an existing symlink is
-# replaced; a regular file there belongs to someone else. Call it from the
+# replaced; a regular file there belongs to someone else. The link is a
+# convenience, so a bin directory that cannot be written (root-owned,
+# read-only) only warns and never stops the install. Call it from the
 # install directory: pwd gives an absolute target even for a relative --dir.
 link_cli() {
   [ -f cli-api-proxy ] || return 0
@@ -142,8 +144,10 @@ link_cli() {
     echo "Skipped the command link: $link exists and is not a symlink." >&2
     return 0
   fi
-  mkdir -p "$bin_dir"
-  ln -sfn "$(pwd)/cli-api-proxy" "$link"
+  if ! mkdir -p "$bin_dir" || ! ln -sfn "$(pwd)/cli-api-proxy" "$link"; then
+    echo "Could not link the cli-api-proxy command in $bin_dir; run $(pwd)/cli-api-proxy directly." >&2
+    return 0
+  fi
   echo "Linked the cli-api-proxy command in $bin_dir"
   case ":$PATH:" in
     *":$bin_dir:"*) ;;

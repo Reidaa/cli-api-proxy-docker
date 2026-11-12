@@ -98,12 +98,18 @@ update() {
   fi
 
   echo "Updating CLIProxyAPI ${current:+from $current }to $version"
+  # Empty when .env has no pin and compose.yaml sets the version.
+  previous=$(sed -n 's/^CLI_PROXY_VERSION=//p' .env | tail -n 1)
   cp -p .env .env.previous
   { grep -v '^CLI_PROXY_VERSION=' .env || true; echo "CLI_PROXY_VERSION=$version"; } > .env.new
   mv .env.new .env
   if ! sh ./install.sh; then
     mv .env.previous .env
-    echo "The update failed. .env is back on version $current." >&2
+    if [ -n "$previous" ]; then
+      echo "The update failed. .env is back on version $previous." >&2
+    else
+      echo "The update failed. .env is back on the default version in compose.yaml." >&2
+    fi
     echo "Check the container with: docker compose ps" >&2
     exit 1
   fi

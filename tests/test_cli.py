@@ -192,6 +192,28 @@ def test_failed_update_restores_the_previous_pin(stage, xdg, run_sh, tmp_path):
 
     assert result.returncode == 1
     assert (copy / ".env").read_text() == before
+    assert "back on the default version in compose.yaml" in result.stderr
+
+
+def test_failed_update_names_the_restored_pin_not_the_container(
+    stage, xdg, run_sh, tmp_path
+):
+    """The message must name the version in .env, not the one that ran."""
+    copy = stage()
+    run_sh("install.sh", "--no-start", cwd=copy, env=xdg.env)
+    with (copy / ".env").open("a") as env:
+        env.write("CLI_PROXY_VERSION=1.0.0\n")
+
+    result = run_sh(
+        "cli-api-proxy",
+        "update",
+        cwd=copy,
+        env={**xdg.env, **stub_tools(tmp_path, docker_up_fails=True, running="2.0.0")},
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "back on version 1.0.0." in result.stderr
 
 
 def test_update_needs_an_install(stage, xdg, run_sh, tmp_path):

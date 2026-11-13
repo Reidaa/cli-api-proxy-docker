@@ -41,6 +41,7 @@ def make_fake_install(tree: Path, marker: str) -> None:
 def make_tarball(
     tmp_path: Path, marker: str,
     *, smuggle: bool = False, include_readme: bool = False,
+    include_cli: bool = False,
 ) -> Path:
     """Build a fake project tarball, wrapped in a top directory.
 
@@ -61,6 +62,9 @@ def make_tarball(
     (pkg / "config" / "config.yaml.example").write_text("example\n")
     if include_readme:
         (pkg / "README.md").write_text("readme\n")
+    if include_cli:
+        (pkg / "cli-api-proxy").write_text("#!/bin/sh\n")
+        (pkg / "cli-api-proxy").chmod(0o755)
     if smuggle:
         (pkg / ".env").write_text("EVIL-ENV\n")
         (pkg / "auths").mkdir()
@@ -97,11 +101,21 @@ def seed_install(dst: Path) -> None:
     (dst / "config" / "config.yaml").write_text("secret\n")
 
 
-def run_bootstrap(repo: Path, tmp_path: Path, *args: str):
-    """Run bootstrap.sh with a stubbed docker on PATH."""
+def run_bootstrap(
+    repo: Path, tmp_path: Path, *args: str, bin_home: Path | None = None
+):
+    """Run bootstrap.sh with a stubbed docker on PATH.
+
+    XDG_BIN_HOME points at tmp_path/bin (or bin_home), so the command link
+    never lands in the real ~/.local/bin.
+    """
     return subprocess.run(
         ["/bin/sh", str(repo / "bootstrap.sh"), *args],
-        env={**os.environ, "PATH": stub_docker(tmp_path)},
+        env={
+            **os.environ,
+            "PATH": stub_docker(tmp_path),
+            "XDG_BIN_HOME": str(bin_home or tmp_path / "bin"),
+        },
         capture_output=True,
         text=True,
         cwd=str(tmp_path),
@@ -297,3 +311,50 @@ def test_linked_worktree_updates_and_keeps_its_gitfile(
     assert (worktree / ".git").is_file()
     assert "BIND_ADDRESS=127.0.0.1" in (clone / ".env").read_text()
     assert (clone / "auths" / "g.txt").read_text() == "token\n"
+
+
+def test_install_links_the_command_into_the_bin_dir(
+    repo: Path, installed: Path, tmp_path: Path
+) -> None:
+    result = run_bootstrap(
+        repo, tmp_path, "--dir", str(installed),
+        "--archive", str(make_tarball(tmp_path, "CLI", include_cli=True)),
+        "--no-start",
+    )
+    assert result.returncode == 0, result.stderr
+    link = tmp_path / "bin" / "cli-api-proxy"
+    assert link.is_symlink()
+    assert os.readlink(link) == str(installed / "cli-api-proxy")
+
+
+def test_install_runs_when_the_bin_dir_cannot_be_created(
+    repo: Path, installed: Path, tmp_path: Path
+) -> None:
+    # mkdir -p fails below a regular file, as it does for a root-owned or
+    # read-only ~/.local/bin. The link is skipped; install.sh still runs.
+    (tmp_path / "blocker").write_text("file\n")
+    result = run_bootstrap(
+        repo, tmp_path, "--dir", str(installed),
+        "--archive", str(make_tarball(tmp_path, "CLI", include_cli=True)),
+        "--no-start", bin_home=tmp_path / "blocker" / "bin",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "FAKEDINSTALL CLI --no-start" in result.stdout
+    assert "Could not link" in result.stderr
+
+
+def test_install_keeps_a_foreign_file_at_the_link_path(
+    repo: Path, installed: Path, tmp_path: Path
+) -> None:
+    # A regular file with the same name belongs to someone else.
+    (tmp_path / "bin").mkdir()
+    foreign = tmp_path / "bin" / "cli-api-proxy"
+    foreign.write_text("mine\n")
+    result = run_bootstrap(
+        repo, tmp_path, "--dir", str(installed),
+        "--archive", str(make_tarball(tmp_path, "CLI", include_cli=True)),
+        "--no-start",
+    )
+    assert result.returncode == 0, result.stderr
+    assert foreign.read_text() == "mine\n"
+    assert "cli-api-proxy" in result.stderr

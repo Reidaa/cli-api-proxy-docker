@@ -1,0 +1,141 @@
+#!/bin/sh
+# Manage this CLIProxyAPI install: install, update or uninstall it.
+# bootstrap.sh links this file into $XDG_BIN_HOME (default ~/.local/bin), so
+# the command works from any directory. install and uninstall run the
+# matching project script from the install directory. update pins a
+# CLIProxyAPI release in .env and rebuilds the container with install.sh.
+set -eu
+
+usage() {
+  cat <<'EOF'
+Usage: cli-api-proxy COMMAND [OPTIONS]
+
+Commands:
+  install    Configure, build and start the container from the installed files.
+             Options: --reconfigure --no-start --tailscale
+  update     Rebuild and restart the container on the latest CLIProxyAPI
+             release, or on the release given with --version.
+             Options: --version VERSION
+  uninstall  Stop the container and remove the installed files.
+             Options: --purge (also delete config, auth tokens and logs)
+
+Run "cli-api-proxy COMMAND --help" for the options of one command.
+EOF
+}
+
+# Follow the PATH symlink back to the install directory.
+self=$0
+while [ -L "$self" ]; do
+  target=$(readlink "$self")
+  case "$target" in
+    /*) self=$target ;;
+    *) self=$(dirname -- "$self")/$target ;;
+  esac
+done
+root_dir=$(CDPATH='' cd -- "$(dirname -- "$self")" && pwd)
+
+releases_api=https://api.github.com/repos/router-for-me/CLIProxyAPI/releases/latest
+
+# curl or wget, whichever exists, as in bootstrap.sh.
+fetch() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -- "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- -- "$1"
+  else
+    echo "Neither curl nor wget was found. Install one of them first." >&2
+    exit 1
+  fi
+}
+
+# Pin a CLIProxyAPI release in .env, then let install.sh rebuild and
+# restart the container. A failed rebuild puts the previous .env back.
+update() {
+  version=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --version)
+        [ "$#" -ge 2 ] || { echo "Option --version needs a value." >&2; exit 2; }
+        version=${2#v}
+        shift 2
+        ;;
+      -h|--help) usage; exit 0 ;;
+      *) echo "Unknown option for update: $1" >&2; exit 2 ;;
+    esac
+  done
+
+  cd "$root_dir"
+  umask 077
+  # Compose prefers a shell variable over .env, so an exported
+  # CLI_PROXY_VERSION would build the old release under the new pin.
+  unset CLI_PROXY_VERSION
+  if [ ! -f .env ]; then
+    echo "No .env in $root_dir. Run 'cli-api-proxy install' first." >&2
+    exit 1
+  fi
+
+  if [ -z "$version" ]; then
+    version=$(fetch "$releases_api" \
+      | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)
+    if [ -z "$version" ]; then
+      echo "Could not read the latest CLIProxyAPI release from GitHub." >&2
+      exit 1
+    fi
+  fi
+  case "$version" in
+    ''|*[!0-9A-Za-z._-]*) echo "Invalid version: $version" >&2; exit 2 ;;
+  esac
+
+  # The image tag of the container says which release really runs. The
+  # .env pin alone does not: a pin written before a failed rebuild, or an
+  # exported CLI_PROXY_VERSION, can leave the container on another release.
+  # Without a container, there is nothing to compare and the update proceeds.
+  current=$(docker inspect --format '{{.Config.Image}}' cli-api-proxy 2>/dev/null \
+    | sed -n 's/.*://p')
+  if [ "$version" = "$current" ]; then
+    echo "CLIProxyAPI is already at version $version."
+    exit 0
+  fi
+
+  echo "Updating CLIProxyAPI ${current:+from $current }to $version"
+  # Empty when .env has no pin and compose.yaml sets the version.
+  previous=$(sed -n 's/^CLI_PROXY_VERSION=//p' .env | tail -n 1)
+  cp -p .env .env.previous
+  { grep -v '^CLI_PROXY_VERSION=' .env || true; echo "CLI_PROXY_VERSION=$version"; } > .env.new
+  mv .env.new .env
+  if ! sh ./install.sh; then
+    mv .env.previous .env
+    if [ -n "$previous" ]; then
+      echo "The update failed. .env is back on version $previous." >&2
+    else
+      echo "The update failed. .env is back on the default version in compose.yaml." >&2
+    fi
+    echo "Check the container with: docker compose ps" >&2
+    exit 1
+  fi
+  rm -f .env.previous
+}
+
+[ "$#" -gt 0 ] || { usage; exit 0; }
+command=$1
+shift
+
+case "$command" in
+  install)
+    exec sh "$root_dir/install.sh" "$@"
+    ;;
+  update)
+    update "$@"
+    ;;
+  uninstall)
+    exec sh "$root_dir/uninstall.sh" "$@"
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $command" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

@@ -53,6 +53,26 @@ curl -fsSL https://raw.githubusercontent.com/Reidaa/cli-api-proxy-docker/main/bo
 If `docker` or `docker compose` is missing, the script stops before any
 download and prints the install hint `curl -fsSL https://get.docker.com | sh`.
 
+## The `cli-api-proxy` command
+
+The bootstrap links the `cli-api-proxy` command into `~/.local/bin` (follows
+`$XDG_BIN_HOME`). If that directory is not in `PATH`, the bootstrap tells you.
+The bootstrap does not replace a regular file that already has that name.
+
+```sh
+# Configure, build and start the container from the installed files.
+cli-api-proxy install [--reconfigure] [--no-start] [--tailscale]
+
+# Rebuild and restart the container on the latest CLIProxyAPI release.
+cli-api-proxy update [--version VERSION]
+
+# Stop the container and remove the installed files and the command.
+cli-api-proxy uninstall [--purge]
+```
+
+`install` runs `install.sh` and `uninstall` runs `uninstall.sh`. See
+[Update](#update) for `update`.
+
 ## Tailscale
 
 With Tailscale already running on the host, install with the `--tailscale`
@@ -102,8 +122,8 @@ provider auth tokens and the management password. Delete them too:
 curl -fsSL https://raw.githubusercontent.com/Reidaa/cli-api-proxy-docker/main/bootstrap.sh | sh -s -- --uninstall --purge
 ```
 
-From an installed copy, `./uninstall.sh` and `./uninstall.sh --purge` do the
-same. The script refuses to run from a git checkout, so developing against the
+`cli-api-proxy uninstall` and `cli-api-proxy uninstall --purge` do the same.
+So do `./uninstall.sh` and `./uninstall.sh --purge` from an installed copy. The script refuses to run from a git checkout, so developing against the
 source is safe.
 
 ### Install from a local checkout
@@ -239,12 +259,28 @@ docker compose down
 
 ## Update
 
-1. Set `CLI_PROXY_VERSION` in `.env` to a published CLIProxyAPI release. The
-   file has no such line by default; add one to pin a release.
-2. Run `./install.sh`.
+To move the container to the latest CLIProxyAPI release, run:
 
-Re-running the one-line bootstrap gives the same result: it refreshes the
-project files and re-runs `install.sh` from the install directory (default: `~/.local/share/cli-api-proxy`).
+```sh
+cli-api-proxy update
+```
+
+The command does these actions:
+
+1. It reads the latest release from the GitHub API.
+2. It writes `CLI_PROXY_VERSION` in `.env`.
+3. It runs `install.sh`, which rebuilds the image and restarts the container.
+
+If the rebuild fails, the command puts the previous `.env` back. Use
+`--version VERSION` to select a release. If the container already has that
+version, the command does nothing.
+
+To do the same by hand, set `CLI_PROXY_VERSION` in `.env` and run
+`./install.sh`.
+
+To refresh the project files (scripts, `compose.yaml`, `Dockerfile`), re-run
+the one-line bootstrap. It re-runs `install.sh` from the install directory
+(default: `~/.local/share/cli-api-proxy`).
 
 An existing `.env` keeps its own `CLI_PROXY_VERSION` line. The bootstrap alone
 does not upgrade that installation. Remove the line to follow the repository
@@ -270,7 +306,7 @@ The default version is `8.0.69`, defined in `compose.yaml`. The image downloads 
 
 ## Tests
 
-The test suite runs the real scripts (`bootstrap.sh`, `install.sh`, `uninstall.sh`) in throwaway copies of the tree, with throwaway XDG directories. It creates no container and downloads no release.
+The test suite runs the real scripts (`bootstrap.sh`, `install.sh`, `uninstall.sh`, `cli-api-proxy`) in throwaway copies of the tree, with throwaway XDG directories. It creates no container and downloads no release.
 
 ```sh
 mise install   # installs the uv version pinned in mise.toml

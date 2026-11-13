@@ -130,6 +130,31 @@ fetch() {
   fi
 }
 
+# Put the cli-api-proxy command on PATH as a symlink in $XDG_BIN_HOME
+# (default ~/.local/bin). Only a missing path or an existing symlink is
+# replaced; a regular file there belongs to someone else. The link is a
+# convenience, so a bin directory that cannot be written (root-owned,
+# read-only) only warns and never stops the install. Call it from the
+# install directory: pwd gives an absolute target even for a relative --dir.
+link_cli() {
+  [ -f cli-api-proxy ] || return 0
+  bin_dir=${XDG_BIN_HOME:-$HOME/.local/bin}
+  link=$bin_dir/cli-api-proxy
+  if [ -e "$link" ] && [ ! -L "$link" ]; then
+    echo "Skipped the command link: $link exists and is not a symlink." >&2
+    return 0
+  fi
+  if ! mkdir -p "$bin_dir" || ! ln -sfn "$(pwd)/cli-api-proxy" "$link"; then
+    echo "Could not link the cli-api-proxy command in $bin_dir; run $(pwd)/cli-api-proxy directly." >&2
+    return 0
+  fi
+  echo "Linked the cli-api-proxy command in $bin_dir"
+  case ":$PATH:" in
+    *":$bin_dir:"*) ;;
+    *) echo "Add $bin_dir to PATH to run cli-api-proxy from anywhere." >&2 ;;
+  esac
+}
+
 # Uninstall needs the installed files, not a download; reject combinations
 # that would fetch code just to remove it.
 if [ "$mode" = uninstall ]; then
@@ -204,6 +229,7 @@ if [ -d "$install_dir/.git" ] || [ -f "$install_dir/.git" ]; then
   git -C "$install_dir" reset --hard FETCH_HEAD
   echo "Updated the project files in $install_dir"
   cd "$install_dir"
+  link_cli
   # shellcheck disable=SC2086
   sh ./install.sh $inner_flags
   exit 0
@@ -275,6 +301,7 @@ done
 tar -cf - -C "$staging" . | tar -xf - -C "$install_dir"
 echo "Installed files in $install_dir"
 cd "$install_dir"
+link_cli
 
 # shellcheck disable=SC2086
 sh ./install.sh $inner_flags

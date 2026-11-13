@@ -56,4 +56,4 @@ plugins:
 # Add API-key providers under the root api-keys section, or use the management
 # UI and OAuth login flows. Client keys belong under access.api-keys above.
 # See upstream's complete example for all options:
-# https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.42/config.example.yaml
+# https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.69/config.example.yaml

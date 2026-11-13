@@ -5,5 +5,25 @@
     "config:recommended",
     "helpers:pinGitHubActionDigestsToSemver"
   ],
-  "minimumReleaseAge": "3 days"
+  "minimumReleaseAge": "3 days",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Default CLIProxyAPI release, pinned in several files. One depName keeps every pin in one PR.",
+      "managerFilePatterns": [
+        "/^Dockerfile$/",
+        "/^compose\\.yaml$/",
+        "/^README\\.md$/",
+        "/^config/config\\.yaml\\.example$/"
+      ],
+      "matchStrings": [
+        "CLI_PROXY_VERSION(?:=|:-)(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "The default version is `(?<currentValue>\\d+\\.\\d+\\.\\d+)`",
+        "CLIProxyAPI/blob/v(?<currentValue>\\d+\\.\\d+\\.\\d+)/"
+      ],
+      "depNameTemplate": "router-for-me/CLIProxyAPI",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ]
 }

@@ -273,7 +273,8 @@ The command does these actions:
 
 If the rebuild fails, the command puts the previous `.env` back. Use
 `--version VERSION` to select a release. If the container already has that
-version, the command does nothing.
+version, the command does not rebuild. It still writes the version to `.env`
+when the pin differs, so the next `install` keeps the running release.
 
 To do the same by hand, set `CLI_PROXY_VERSION` in `.env` and run
 `./install.sh`.

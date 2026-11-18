@@ -136,6 +136,30 @@ def test_update_at_the_latest_version_does_nothing(stage, xdg, run_sh, tmp_path)
     assert "compose up" not in (tmp_path / "docker.log").read_text()
 
 
+def test_update_at_the_running_version_still_writes_the_pin(
+    stage, xdg, run_sh, tmp_path
+):
+    """A container already on the version needs no rebuild, but a stale pin
+    would make the next install rebuild the old release."""
+    copy = stage()
+    run_sh("install.sh", "--no-start", cwd=copy, env=xdg.env)
+    with (copy / ".env").open("a") as env:
+        env.write("CLI_PROXY_VERSION=1.0.0\n")
+
+    result = run_sh(
+        "cli-api-proxy",
+        "update",
+        "--version",
+        "9.1.0",
+        cwd=copy,
+        env={**xdg.env, **stub_tools(tmp_path, running="9.1.0")},
+    )
+
+    assert "already" in result.stdout
+    assert env_version(copy) == ["CLI_PROXY_VERSION=9.1.0"]
+    assert "compose up" not in (tmp_path / "docker.log").read_text()
+
+
 def test_update_compares_with_the_running_container_not_the_pin(
     stage, xdg, run_sh, tmp_path
 ):

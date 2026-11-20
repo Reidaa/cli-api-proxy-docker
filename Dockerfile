@@ -7,14 +7,14 @@ RUN apt-get update \
 
 COPY scripts/install-cli-api-proxy.sh /usr/local/bin/install-cli-api-proxy
 
-ARG CLI_PROXY_VERSION=8.0.74
+ARG CLI_PROXY_VERSION=8.0.76
 ARG TARGETARCH
 RUN /usr/local/bin/install-cli-api-proxy \
     "${CLI_PROXY_VERSION}" "${TARGETARCH}" /out/cli-proxy-api
 
 FROM debian:bookworm-slim
 
-ARG CLI_PROXY_VERSION=8.0.74
+ARG CLI_PROXY_VERSION=8.0.76
 LABEL org.opencontainers.image.title="CLIProxyAPI" \
       org.opencontainers.image.description="Container image for router-for-me/CLIProxyAPI" \
       org.opencontainers.image.source="https://github.com/router-for-me/CLIProxyAPI" \

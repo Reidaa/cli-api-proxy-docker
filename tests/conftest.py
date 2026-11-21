@@ -33,11 +33,12 @@ STAGE_IGNORE = shutil.ignore_patterns(
 
 @dataclass(frozen=True)
 class XdgDirs:
-    """The three XDG base directories, as the install scripts resolve them."""
+    """The XDG base directories, as the install scripts resolve them."""
 
     config_home: Path
     data_home: Path
     state_home: Path
+    bin_home: Path
 
     @property
     def conf(self) -> Path:
@@ -61,6 +62,7 @@ class XdgDirs:
             "XDG_CONFIG_HOME": str(self.config_home),
             "XDG_DATA_HOME": str(self.data_home),
             "XDG_STATE_HOME": str(self.state_home),
+            "XDG_BIN_HOME": str(self.bin_home),
         }
 
 
@@ -92,12 +94,13 @@ def stage(tmp_path: Path, repo: Path):
 
 @pytest.fixture
 def xdg(tmp_path: Path) -> XdgDirs:
-    """Three throwaway XDG base directories, so tests never touch real ones."""
+    """Throwaway XDG base directories, so tests never touch real ones."""
 
     dirs = XdgDirs(
         config_home=tmp_path / "xdg-config",
         data_home=tmp_path / "xdg-data",
         state_home=tmp_path / "xdg-state",
+        bin_home=tmp_path / "xdg-bin",
     )
     for base in (dirs.config_home, dirs.data_home, dirs.state_home):
         base.mkdir()

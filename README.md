@@ -266,7 +266,7 @@ On SELinux-enforcing hosts (Fedora, RHEL, Fedora CoreOS), the Compose mounts car
 
 ## Release source
 
-The default version is `8.0.78`, defined in `compose.yaml`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.
+The default version is `8.1.2`, defined in `compose.yaml`. The image downloads release files from `router-for-me/CLIProxyAPI` and checks `checksums.txt` before extraction.
 
 ## Tests
 
